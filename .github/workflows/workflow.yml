@@ -28,7 +28,7 @@ jobs:
               working-directory: ./dummy_deployment/infrastructure
 
             - name: Plan terraform
-              run: terraform plan
+              run: terraform plan - var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"
               working-directory: ./dummy_deployment/infrastructure
 
             - name: Apply terraform
