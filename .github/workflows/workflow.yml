@@ -25,12 +25,15 @@ jobs:
             
             - name: Init terraform
               run: terraform init
+              working-directory: ./dummy_deployment/infrastructure
 
             - name: Plan terraform
               run: terraform plan
+              working-directory: ./dummy_deployment/infrastructure
 
             - name: Apply terraform
               run: terraform apply -auto-approve
+              working-directory: ./dummy_deployment/infrastructure
               env:
                 TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
 
