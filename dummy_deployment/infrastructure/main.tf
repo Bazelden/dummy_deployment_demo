@@ -34,8 +34,6 @@ resource "aws_instance" "dummy_host_instance" {
                 EOF
 
   security_groups = [aws_security_group.dummy_host_sg.name]
-
-  key_name = aws_key_pair.deployer_key.key_name
 }
 
 
