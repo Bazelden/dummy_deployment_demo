@@ -34,6 +34,8 @@ resource "aws_instance" "dummy_host_instance" {
                 EOF
 
   security_groups = [aws_security_group.dummy_host_sg.name]
+
+  key_name = aws_key_pair.deployer_key.key_name
 }
 
 
@@ -63,4 +65,10 @@ resource "aws_security_group" "dummy_host_sg" {
     Name = "AppSecurityGroup"
   }
 }
+
+resource "aws_key_pair" "deployer_key" {
+  key_name   = "github_actions_deployer"
+  public_key = var.ssh_public_key
+}
+
 
