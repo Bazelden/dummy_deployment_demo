@@ -66,15 +66,5 @@ resource "aws_security_group" "dummy_host_sg" {
   }
 }
 
-resource "aws_key_pair" "update_deployer_key" {
-  count = data.aws_key_pair.existing_deployer_key.key_name != null ? 1 : 0
-
-  key_name   = aws_key_pair.deployer_key.key_name
-  public_key = aws_key_pair.deployer_key.public_key
-
-  depends_on = [
-    aws_key_pair.deployer_key
-  ]
-}
 
 
