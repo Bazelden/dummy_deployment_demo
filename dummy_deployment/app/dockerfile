@@ -1,0 +1,15 @@
+#a docker file to contain the hello world java applicaton. I have been given a .jar file to run as well as .zip file containing the source code. I will be using the .jar file to run the application and try the .zip file later on.
+
+#parent image
+FROM openjdk:latest
+
+#here is where we set the working directory
+WORKDIR /app
+
+#copy the current directory contents into the container at /app
+COPY demo.jar /app/demo.jar
+
+#Use CMD to execute the jar file
+CMD ["java", "-jar", "demo.jar"]
+
+
