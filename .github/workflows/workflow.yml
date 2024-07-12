@@ -1,4 +1,4 @@
-# This is going to be my basic workflow file for CI/CD pipeline
+# This is going to be my basic workflow file for CI/CD pipeline.
 name: CI/CD Pipeline
 
 on:
