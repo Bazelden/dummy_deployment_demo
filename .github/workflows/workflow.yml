@@ -60,10 +60,11 @@ jobs:
             - name: Build and push Docker image
               uses: docker/build-push-action@v2
               with:
-                  context: "{{defaultContext}}"
+                  context: ./dummy_deployment/app
                   push: true
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
+             
                   
             - name: SSH into EC2 and run Docker container
               uses: appleboy/ssh-action@v0.1.4
