@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: dummydeployment
+
 jobs:
     build:
         runs-on: ubuntu-latest
@@ -50,7 +54,8 @@ jobs:
               id: meta
               uses: docker/metadata-action@v3
               with:
-                images: ${{ secrets.DOCKER_USERNAME }}/dummydeployment:latest
+                images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
            
             - name: Build and push Docker image
               uses: docker/build-push-action@v2
