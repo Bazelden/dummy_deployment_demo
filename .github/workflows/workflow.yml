@@ -49,7 +49,8 @@ jobs:
               id: get_ip
               working-directory: ./dummy_deployment/infrastructure
               run: |
-                  echo "instance_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+                  terraform output -raw instance_ip > ip.txt
+                  echo "instance_ip=$(cat ip.txt)" >> $GITHUB_OUTPUT
 
             - name: Wait for EC2 instance
               run: |
