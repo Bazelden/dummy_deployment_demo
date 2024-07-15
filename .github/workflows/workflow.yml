@@ -40,6 +40,11 @@ jobs:
               env:
                 TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
 
+            - name: Debug directory structure
+              run: |
+                ls -R
+                pwd
+
             - name: Get EC2 Instance IP
               id: get_ip
               run: |
