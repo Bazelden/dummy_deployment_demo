@@ -45,23 +45,13 @@ jobs:
                 ls -R
                 pwd
 
-            - name: Get EC2 Instance IP and debug
+            - name: Get EC2 Instance IP
               id: get_ip
               working-directory: ./dummy_deployment/infrastructure
               run: |
-                echo "Terraform Version:"
-                terraform version
-                echo "Terraform Output:"
-                terraform output
-                echo "Raw Instance IP:"
-                terraform output -raw instance_ip
-                echo "File Contents:"
-                terraform output -raw instance_ip > ip.txt
-                cat ip.txt
-                echo "Setting GitHub Output:"
-                echo "instance_ip=$(cat ip.txt)" >> $GITHUB_OUTPUT
-                echo "GitHub Output File Contents:"
-                cat $GITHUB_OUTPUT
+                  IP=$(terraform output -raw instance_ip | sed 's/::debug::.*$//')
+                  echo "instance_ip=$IP" >> $GITHUB_OUTPUT
+                  echo "Debug: IP value is $IP"
                   
 
             - name: Wait for EC2 instance
