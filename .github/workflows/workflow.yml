@@ -49,9 +49,9 @@ jobs:
               id: get_ip
               working-directory: ./dummy_deployment/infrastructure
               run: |
-                  IP=$(terraform output -raw instance_ip | sed 's/::debug::.*$//')
-                  echo "instance_ip=$IP" >> $GITHUB_OUTPUT
-                  echo "Debug: IP value is $IP"
+                  IP=$(terraform output -raw instance_ip)
+                  echo "instance_ip=${IP}" >> $GITHUB_ENV
+                  echo "Debug: IP value is ${IP}"
                   
 
             - name: Wait for EC2 instance
