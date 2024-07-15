@@ -31,6 +31,7 @@ resource "aws_instance" "dummy_host_instance" {
                 yum install -y docker
                 service docker start
                 usermod -a -G docker ec2-user
+                docker run -d -p 80:80 docker.io/bazelden/dummy_deployment_demo:latest
                 EOF
 
   security_groups = [aws_security_group.dummy_host_sg.name]

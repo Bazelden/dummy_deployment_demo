@@ -10,99 +10,53 @@ env:
   IMAGE_NAME: bazelden/dummy_deployment_demo
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v4
+  build_and_deploy:
+    runs-on: ubuntu-latest
 
-            - name: Configure AWS security details
-              uses: aws-actions/configure-aws-credentials@v1
-              with: 
-                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-                aws-region: eu-west-2
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-            - name: Install terraform
-              uses: hashicorp/setup-terraform@v1
-            
-            - name: Init terraform
-              run: terraform init
-              working-directory: ./dummy_deployment/infrastructure
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with: 
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-west-2
 
-            - name: Plan terraform
-              run: terraform plan -var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"
-              working-directory: ./dummy_deployment/infrastructure
+      - name: Login to Docker Hub
+        run: echo ${{ secrets.DOCKER_PAT }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
 
-            - name: Apply terraform
-              run: terraform apply -auto-approve
-              working-directory: ./dummy_deployment/infrastructure
-              env:
-                TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
+      - name: Build Docker image
+        run: docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
 
-            - name: Debug directory structure
-              run: |
-                ls -R
-                pwd
+      - name: Push Docker image to Docker Hub
+        run: docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
 
-            - name: Get EC2 Instance IP
-              id: get_ip
-              working-directory: ./dummy_deployment/infrastructure
-              run: |
-                  IP=$(terraform output -raw instance_ip)
-                  echo "instance_ip=${IP}" >> $GITHUB_ENV
-                  echo "Debug: IP value is ${IP}"
-                  
+      - name: Install terraform
+        uses: hashicorp/setup-terraform@v1
+      
+      - name: Init terraform
+        run: terraform init
+        working-directory: ./dummy_deployment/infrastructure
 
-            - name: Wait for EC2 instance
-              run: |
-                while ! nc -z ${{ steps.get_ip.outputs.instance_ip }} 22; do
-                  echo "Waiting for EC2 instance..."
-                  sleep 10
-                done
+      - name: Plan terraform
+        run: terraform plan -var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"
+        working-directory: ./dummy_deployment/infrastructure
 
-            - name: Copy application files to EC2
-              uses: appleboy/scp-action@master
-              with:
-                host: ${{ steps.get_ip.outputs.instance_ip }}
-                username: ec2-user
-                key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-                source: "./dummy_deployment/app/*"
-                target: "/home/ec2-user/app"
+      - name: Apply terraform
+        run: terraform apply -auto-approve
+        working-directory: ./dummy_deployment/infrastructure
 
-            - name: SSH into EC2, build and run Docker container
-              uses: appleboy/ssh-action@v0.1.4
-              with:
-                host: ${{ steps.get_ip.outputs.instance_ip }}
-                username: ec2-user
-                key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-                script: |
-                  # Install Docker if not already installed
-                  if ! command -v docker &> /dev/null; then
-                    sudo yum update -y
-                    sudo amazon-linux-extras install docker
-                    sudo service docker start
-                    sudo usermod -a -G docker ec2-user
-                  fi
+      - name: Test the application
+        run: |
+          # Retrieve the public IP of the instance
+          IP=$(terraform output -raw instance_ip)
+          echo "Public IP: $IP"
+          sleep 60 # Wait for the instance and Docker container to be fully ready
+          curl http://$IP
 
-                  # Login to Docker Hub
-                  echo ${{ secrets.DOCKER_PAT }} | docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin
-
-                  # Build Docker image
-                  cd /home/ec2-user/app
-                  docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest .
-
-                  # Push Docker image
-                  docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-                  # Run Docker container
-                  docker run -d -p 80:80 ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-
-            - name: Test the application
-              run: |
-                curl http://${{ steps.get_ip.outputs.instance_ip }}
-
-            - name: Destroy Terraform
-              if: always()
-              run: terraform destroy -auto-approve
-              working-directory: ./dummy_deployment/infrastructure
+      - name: Destroy Terraform
+        if: always()
+        run: terraform destroy -auto-approve
+        working-directory: ./dummy_deployment/infrastructure
