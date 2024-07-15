@@ -48,7 +48,7 @@ jobs:
             - name: Get EC2 Instance IP
               id: get_ip
               run: |
-                cd ../dummy_deployment/infrastructure
+                cd ./dummy_deployment/infrastructure
                 echo "instance_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
               working-directory: ./dummy_deployment/infrastructure
 
