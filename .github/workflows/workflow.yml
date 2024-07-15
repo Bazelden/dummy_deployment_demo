@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: docker.io
-  IMAGE_NAME: dummy_deployment_demo
+  IMAGE_NAME: bazelden/dummy_deployment_demo
 
 jobs:
   build-and-push:
