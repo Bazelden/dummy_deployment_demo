@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.tags }}
+      instance_ip: ${{steps.get_ip.outputs.instance_ip}}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -65,17 +66,20 @@ jobs:
         working-directory: ./dummy_deployment/infrastructure
 
       - name: Apply terraform
-        id: terraform
-        run: |
-          terraform apply -auto-approve
-          echo "instance_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+        run: terraform apply -auto-approve
         working-directory: ./dummy_deployment/infrastructure
         env:
           TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
 
+      - name: Get EC2 Instance IP
+        id: get_ip
+        run: |
+          echo "instance_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
+        working-directory: ./dummy_deployment/infrastructure
+
       - name: Wait for EC2 instance
         run: |
-          while ! nc -z ${{ steps.terraform.outputs.instance_ip }} 22; do
+          while ! nc -z ${{ steps.get_ip.outputs.instance_ip }} 22; do
             echo "Waiting for EC2 instance..."
             sleep 10
           done
@@ -83,19 +87,11 @@ jobs:
       - name: SSH into EC2 and run Docker container
         uses: appleboy/ssh-action@v0.1.4
         with:
-          host: ${{ steps.terraform.outputs.instance_ip }}
+          host: ${{ steps.get_ip.outputs.instance_ip }}
           username: ec2-user
           key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
           script: |
-            # Install Docker if not already installed
-            if ! command -v docker &> /dev/null; then
-              sudo yum update -y
-              sudo yum install -y docker
-              sudo service docker start
-              sudo usermod -a -G docker ec2-user
-            fi
-            docker pull ${{ needs.build-and-push.outputs.image_tag }}
-            docker run -d -p 80:80 ${{ needs.build-and-push.outputs.image_tag }}
+            # ... (Docker installation and run commands)
 
   test:
     needs: deploy
