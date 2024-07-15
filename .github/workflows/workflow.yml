@@ -1,3 +1,4 @@
+# This is going to be my basic workflow file for CI/CD pipeline #
 name: CI/CD Pipeline
 
 on:
@@ -10,125 +11,74 @@ env:
   IMAGE_NAME: bazelden/dummy_deployment_demo
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.meta.outputs.tags }}
-      instance_ip: ${{steps.get_ip.outputs.instance_ip}}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    build:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
 
-      - name: Setup docker buildx
-        uses: docker/setup-buildx-action@v2
+            - name: Configure AWS security details
+              uses: aws-actions/configure-aws-credentials@v1
+              with: 
+                aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                aws-region: eu-west-2
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PAT }}
+            - name: Install terraform
+              uses: hashicorp/setup-terraform@v1
+            
+            - name: Init terraform
+              run: terraform init
+              working-directory: ./dummy_deployment/infrastructure
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v3
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=sha,format=long
+            - name: Plan terraform
+              run: terraform plan -var="ssh_public_key=${{ secrets.AWS_SSH_PUBLIC_KEY }}"
+              working-directory: ./dummy_deployment/infrastructure
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./dummy_deployment/app
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+            - name: Apply terraform
+              run: terraform apply -auto-approve
+              working-directory: ./dummy_deployment/infrastructure
+              env:
+                TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
 
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+            - name: Setup docker buildx
+              uses: docker/setup-buildx-action@v2
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with: 
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2
+            - name: Login to Docker Hub
+              uses: docker/login-action@v2
+              with:
+                    username: ${{ secrets.DOCKER_USERNAME }}
+                    password: ${{ secrets.DOCKER_PAT }}
 
-      - name: Install terraform
-        uses: hashicorp/setup-terraform@v1
-      
-      - name: Init terraform
-        run: terraform init
-        working-directory: ./dummy_deployment/infrastructure
+            - name: Extract metadata
+              id: meta
+              uses: docker/metadata-action@v3
+              with:
+                images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      - name: Apply terraform
-        run: terraform apply -auto-approve
-        working-directory: ./dummy_deployment/infrastructure
-        env:
-          TF_VAR_ssh_public_key: ${{ secrets.AWS_SSH_PUBLIC_KEY }}
+           
+            - name: Build and push Docker image
+              uses: docker/build-push-action@v2
+              with:
+                  context: ./dummy_deployment/app
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+             
+                  
+            - name: SSH into EC2 and run Docker container
+              uses: appleboy/ssh-action@v0.1.4
+              with:
+                host: ${{ steps.terraform.outputs.instance_ip }}
+                username: ec2-user
+                key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
+                script: |
+                  docker pull ${{ secrets.DOCKER_USERNAME }}/hello-world:latest
+                  docker run -d -p 80:80 ${{ secrets.DOCKER_USERNAME }}/hello-world:latest
 
-      - name: Get EC2 Instance IP
-        id: get_ip
-        run: |
-          echo "instance_ip=$(terraform output -raw instance_ip)" >> $GITHUB_OUTPUT
-        working-directory: ./dummy_deployment/infrastructure
+            - name: Test the application
+              run: |
+                curl http://$(terraform output -raw instance_ip)
 
-      - name: Wait for EC2 instance
-        run: |
-          while ! nc -z ${{ steps.get_ip.outputs.instance_ip }} 22; do
-            echo "Waiting for EC2 instance..."
-            sleep 10
-          done
-
-      - name: SSH into EC2 and run Docker container
-        uses: appleboy/ssh-action@v0.1.4
-        with:
-          host: ${{ steps.get_ip.outputs.instance_ip }}
-          username: ec2-user
-          key: ${{ secrets.AWS_SSH_PRIVATE_KEY }}
-          script: |
-            # ... (Docker installation and run commands)
-
-  test:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Test the application
-        run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ needs.deploy.outputs.instance_ip }})
-          if [ $response = "200" ]; then
-            echo "Application is running successfully!"
-          else
-            echo "Application test failed with status code: $response"
-            exit 1
-          fi
-
-  cleanup:
-    needs: [deploy, test]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with: 
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-west-2
-
-      - name: Install terraform
-        uses: hashicorp/setup-terraform@v1
-
-      - name: Init terraform
-        run: terraform init
-        working-directory: ./dummy_deployment/infrastructure
-
-      - name: Destroy Terraform
-        run: terraform destroy -auto-approve
-        working-directory: ./dummy_deployment/infrastructure
+            - name: Destroy Terraform
+              run: terraform destroy -auto-approve
